@@ -1,5 +1,22 @@
 # Development log
 
+## 2026-11-08 — Phase 2 executable-identity probe, synthetic validation only
+
+Started a separate dependent draft branch `engineering/phase2-pe-identity-probe` (PR #3), based on the Phase 1 Ghidra fallback branch rather than main.
+
+Implemented a private read-only Phase 2 runner (`tools/run_phase2.py`) and a headless Ghidra PE verifier (`tools/ghidra/DotmPhase2Probe.java`). This uses the pinned XEXLoaderWV to privately reconstruct the PE in memory, then verifies MZ/PE signatures, PE32 section-directory boundaries, source/XEX identity, image-base consistency, executable memory mapping and one 4-byte PPC entry instruction before producing private JSON. No PE bytes, executable instructions or decompiled output are exported. Full auto-analysis remains deferred until that evidence gate passes.
+
+Observed CI for implementation commit `062bfb26fccf1fa771d77024e7d394b790038f4b`:
+- [Source tools run 42531423644](https://github.com/iammrmikemanmods/Transformers-Dark-Of-The-Moon-Pc-Port/actions/runs/42531423644): **62 tests on Windows and 62 on Ubuntu passed**. Read actual job logs.
+- [Cloud Ghidra run 42531423655](https://github.com/iammrmikemanmods/Transformers-Dark-Of-The-Moon-Pc-Port/actions/runs/42531423655): Docker container, 62 synthetic tests, pinned archive hash verification and a bounded **synthetic** PowerPC instruction decoding test all passed. Actual job logs inspected.
+- A prior Windows run failed due to platform-unstable `st_ctime_ns` comparison; corrected in the Phase 2 branch while keeping file identity, size, mtime and exact SHA-256 source validation. Added two regression tests and confirmed replacement CI passes.
+
+The human-readable Phase 1 analysis was supplied by the owner from a separate working ChatGPT conversation. Its reported DOTM SHA-256, Title ID, base, entry and encryption/compression fields are embedded only as an exact **input gate**; these have NOT been independently reread in this blocked project workspace.
+
+**Still blocked:** real `default.xex` import and reconstruction, real PE machine determination, actual PowerPC instruction discovery and native compilation. This container continues to return `ClientError`. The GitHub connector can edit source and inspect CI, but cannot transfer the user's Project-mounted XEX bytes to private Codespaces or operate the Codespace terminal. The owner must place the original XEX privately in `.local/source/default.xex` and run `python tools/run_phase2.py`. Actual source success is not claimed.
+
+Evidence and user operation: [PHASE2_PE_GATE.md](PHASE2_PE_GATE.md).
+
 ## 2026-11-08 — executable cloud fallback and observed validation
 
 Implemented private Codespaces configuration, SHA-256-pinned Ghidra 12.1.3 with matching XEXLoaderWV, an import-only metadata reporter, a source-preserving Phase 1 runner, and synthetic cloud validation on `engineering/phase1-codespaces-fallback` (PR #2). No original game data is in the changes. The branch remains separate from main.

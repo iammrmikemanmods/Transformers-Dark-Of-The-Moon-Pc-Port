@@ -1,6 +1,6 @@
 # Phase 2 — private reconstructed PE identity and bounded PPC entrypoint
 
-**Status: implemented for validation, NOT YET RUN ON THE OWNER'S XEX.**
+**Status: source-only synthetic CI validated; NOT YET RUN ON THE OWNER'S XEX.**
 
 This stage depends on the Phase 1 Codespaces branch and keeps proprietary game data outside this public repository. It is not full decompilation, static recompilation, an emulator, or a native PC build.
 
@@ -54,3 +54,13 @@ No game files are changed. Preserve each source and evidence directory. Discard 
 ## Windows intake reliability correction
 
 The first Phase 2 Windows CI run exposed an intermittent, pre-existing `Input changed before opening` false positive on newly created synthetic fixtures. The source-intake identity stamp now compares device, inode, size and last-modification timestamp but omits the platform-dependent creation/change timestamp. Existing full-file SHA-256 verification and the exact DOTM fingerprint gate remain in effect. Regression tests cover creation-time-only drift and actual modification-time changes. Recheck Windows CI results before treating this fix as validated.
+
+## Confirmed synthetic validation (2026-11-08)
+
+Source implementation commit: `062bfb26fccf1fa771d77024e7d394b790038f4b`.
+
+- Source tools: GitHub Actions run [42531423644](https://github.com/iammrmikemanmods/Transformers-Dark-Of-The-Moon-Pc-Port/actions/runs/42531423644). Windows 62/62 tests passed; Ubuntu 62/62 passed. Logs inspected.
+- Cloud toolchain: GitHub Actions run [42531423655](https://github.com/iammrmikemanmods/Transformers-Dark-Of-The-Moon-Pc-Port/actions/runs/42531423655). Container built, 62/62 synthetic tests passed, Ghidra and XEXLoaderWV archive hashes verified, headless Ghidra imported the synthetic fixture, and the new Phase 2 Java script decoded the synthetic four-byte PowerPC blr. Logs inspected.
+- Earlier source-tools run 42531168688 failed on a Windows timestamp false positive. This was investigated, fixed in commit 062bfb2, and verified by the successful replacement run. That failed run is retained as evidence, not reclassified as a pass.
+
+No real XEX was uploaded to or processed by these public workflows. The actual Xbox PE machine type, recovered PE hash, source-specific memory blocks, imports and PowerPC instructions remain unobserved by this project.
