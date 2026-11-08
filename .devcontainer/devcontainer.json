@@ -1,0 +1,14 @@
+{
+  "name": "DOTM Phase 1 - private source analysis",
+  "build": { "dockerfile": "Dockerfile", "context": ".." },
+  "remoteUser": "analyst",
+  "postCreateCommand": "bash tools/setup_codespace.sh",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "files.exclude": { "**/.local/toolchains": true },
+        "files.watcherExclude": { "**/.local/toolchains/**": true, "**/.local/runs/**": true }
+      }
+    }
+  }
+}

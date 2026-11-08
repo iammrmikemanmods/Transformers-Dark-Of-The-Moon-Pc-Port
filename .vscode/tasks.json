@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "DOTM: Phase 1 private XEX intake and Ghidra import",
+      "type": "process",
+      "command": "python",
+      "args": ["tools/run_phase1.py"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "DOTM: Phase 1 header inspection only",
+      "type": "process",
+      "command": "python",
+      "args": ["tools/run_phase1.py", "--intake-only"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    }
+  ]
+}
