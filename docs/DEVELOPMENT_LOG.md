@@ -1,5 +1,21 @@
 # Development log
 
+## 2026-11-08 — executable cloud fallback and observed validation
+
+Implemented private Codespaces configuration, SHA-256-pinned Ghidra 12.1.3 with matching XEXLoaderWV, an import-only metadata reporter, a source-preserving Phase 1 runner, and synthetic cloud validation on `engineering/phase1-codespaces-fallback` (PR #2). No original game data is in the changes. The branch remains separate from main.
+
+Implementation commit `bb947950798355f54b027ce850f00ea81d21739c` was directly validated by reading GitHub job outcomes and logs:
+
+- Source-tools run `42511031610`: 48 tests passed on Windows and 48 on Ubuntu; publication checks passed.
+- Cloud Ghidra smoke run `42511031603`: built the actual devcontainer Dockerfile; 48 tests passed inside it; verified both pinned upstream archive hashes; started headless Ghidra; discovered XEXLoaderWV; imported a four-byte synthetic PowerPC fixture and produced validated JSON.
+- Observed cloud-container versions: Python 3.14.10, OpenJDK 21.0.13, Ghidra 12.1.3.
+
+The first smoke run `42510811993` failed because Ghidra rejects hidden project-path components. Fixed by moving private project databases out of `.local` into ignored `private/ghidra-projects/`, while preserving `.local` for inputs, reports and toolchains. Added regression tests. Do not regress to storing the Ghidra database under `.local`.
+
+Full evidence and scope: [validation/CLOUD_PHASE1_2026-11-08.md](validation/CLOUD_PHASE1_2026-11-08.md). Owner setup: [CLOUD_PHASE1.md](CLOUD_PHASE1.md).
+
+Actual `default.xex` analysis is still NOT PERFORMED. The ChatGPT workspace failed and the connector has no binary-transfer or Codespace-terminal capability. No Codespace has been launched. A private source upload and invocation of `python tools/run_phase1.py` remain necessary. The smoke test validates extension discovery and raw PowerPC import, not encrypted/compressed XEX loading. Full auto-analysis, decompilation, recompilation and native gameplay remain unattempted.
+
 ## 2026-11-08 — repository bootstrap and source-tooling v0.1.0
 
 ### Completed and directly observed
