@@ -50,3 +50,7 @@ After a successful real-source run, review the PE machine identifier, image-base
 ## Rollback
 
 No game files are changed. Preserve each source and evidence directory. Discard an incomplete private Ghidra database if desired without touching .local/source. Git branch rollback does not delete ignored private evidence. Never force-push verified history.
+
+## Windows intake reliability correction
+
+The first Phase 2 Windows CI run exposed an intermittent, pre-existing `Input changed before opening` false positive on newly created synthetic fixtures. The source-intake identity stamp now compares device, inode, size and last-modification timestamp but omits the platform-dependent creation/change timestamp. Existing full-file SHA-256 verification and the exact DOTM fingerprint gate remain in effect. Regression tests cover creation-time-only drift and actual modification-time changes. Recheck Windows CI results before treating this fix as validated.

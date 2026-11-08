@@ -49,6 +49,23 @@ def good_report():
     }
 
 
+class StatStabilityTests(unittest.TestCase):
+    def test_created_time_drift_does_not_reject_same_file(self):
+        from types import SimpleNamespace
+        values = dict(st_dev=1, st_ino=11, st_size=256, st_mtime_ns=1000)
+        before = SimpleNamespace(**values, st_ctime_ns=4000)
+        after = SimpleNamespace(**values, st_ctime_ns=5000)
+        self.assertEqual(source_intake._stamp(before), source_intake._stamp(after))
+
+    def test_modify_time_change_is_rejected(self):
+        from types import SimpleNamespace
+        before = SimpleNamespace(st_dev=1, st_ino=11, st_size=256,
+                                 st_mtime_ns=1000, st_ctime_ns=4000)
+        after = SimpleNamespace(st_dev=1, st_ino=11, st_size=256,
+                                st_mtime_ns=1001, st_ctime_ns=4000)
+        self.assertNotEqual(source_intake._stamp(before), source_intake._stamp(after))
+
+
 class FingerprintTests(unittest.TestCase):
     def test_known_observation_passes(self):
         run_phase2.verify_source(good_observation())
