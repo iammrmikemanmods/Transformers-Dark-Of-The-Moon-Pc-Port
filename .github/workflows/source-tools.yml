@@ -1,0 +1,35 @@
+name: Source tooling tests (not a game build)
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python source tools / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source only
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Set up Python 3.14
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.14'
+      - name: Interpreter identity
+        run: python --version
+      - name: Reject tracked game inputs and binary files
+        run: python tools/check_repository.py
+      - name: Test synthetic fixtures only
+        run: python -m unittest discover -s tests -v
+      - name: CLI smoke test
+        run: python tools/source_intake.py --version
