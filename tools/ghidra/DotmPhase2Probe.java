@@ -163,8 +163,11 @@ public class DotmPhase2Probe extends GhidraScript {
                 boolean executable = (characteristics & 0x20000000L) != 0;
                 boolean virtualSpanBacked = rva <= pe.length && virtualSize <= pe.length - rva;
                 long initializedSpan = Math.min(rawSize, virtualSize);
-                boolean initializedSpanBacked =
-                    rva <= pe.length && initializedSpan <= pe.length - rva;
+                // A pure .bss/zero-fill section has no initialized span to
+                // reconstruct. It is valid for its virtual RVA to be beyond
+                // the file-backed XEX image when PE virtual bounds permit it.
+                boolean initializedSpanBacked = initializedSpan == 0 ||
+                    (rva <= pe.length && initializedSpan <= pe.length - rva);
                 ensure(!executable || virtualSpanBacked,
                        "Executable PE section is not fully backed by the XEX reconstruction: index=" +
                        i + " rva=" + hex(rva, 8) + " virtual_size=" + hex(virtualSize, 8) +

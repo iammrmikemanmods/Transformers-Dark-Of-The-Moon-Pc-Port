@@ -116,6 +116,19 @@ class EvidenceTests(unittest.TestCase):
         value["pe_size_of_image_delta_bytes"] = 65536
         run_phase2.validate_probe(value, good_observation())
 
+    def test_uninitialized_virtual_only_section_is_not_misclassified(self):
+        value = good_report()
+        value["pe_size_of_image_bytes"] += 65536
+        value["pe_size_of_image_differs_from_reconstructed_buffer"] = True
+        value["pe_size_of_image_delta_bytes"] = 65536
+        value["pe_sections"].append({
+            "name": ".bss", "executable": False,
+            "within_declared_virtual_image": True,
+            "initialized_span_backed_by_xex": True,
+            "virtual_span_backed_by_xex": False,
+        })
+        run_phase2.validate_probe(value, good_observation())
+
     def test_unaligned_virtual_image_rejected(self):
         value = good_report()
         value["pe_size_of_image_bytes"] += 4096
