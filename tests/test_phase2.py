@@ -36,10 +36,20 @@ def good_report():
         "mz_verified": True, "pe_signature_verified": True,
         "pe_machine_hex": "0x01F2", "pe_optional_magic": "0x010B",
         "pe_image_length_bytes": run_phase2.EXPECTED_IMAGE_BYTES,
+        "pe_size_of_image_bytes": run_phase2.EXPECTED_IMAGE_BYTES,
+        "pe_section_alignment_bytes": 65536,
+        "pe_file_alignment_bytes": 512,
+        "pe_size_of_image_differs_from_reconstructed_buffer": False,
+        "pe_size_of_image_delta_bytes": 0,
         "xex_entry_point": run_phase2.EXPECTED_ENTRY,
         "xex_image_base": run_phase2.EXPECTED_BASE,
         "pe_image_base": run_phase2.EXPECTED_BASE,
-        "pe_sections": [{"name": ".text", "executable": True}],
+        "pe_sections": [{"name": ".text", "executable": True,
+                         "within_declared_virtual_image": True,
+                         "initialized_span_backed_by_xex": True,
+                         "virtual_span_backed_by_xex": True}],
+        "pe_section_coverage_validated": True,
+        "all_executable_sections_backed": True,
         "executable_section_count": 1,
         "recovered_pe_sha256_private": "b" * 64,
         "entry_in_executable_memory": True,
@@ -96,6 +106,33 @@ class EvidenceTests(unittest.TestCase):
     def test_synthetic_report_rejected_for_real_source(self):
         value = good_report()
         value["kind"] = "synthetic"
+        with self.assertRaises(source_intake.IntakeError):
+            run_phase2.validate_probe(value, good_observation())
+
+    def test_larger_aligned_virtual_image_accepted_when_sections_backed(self):
+        value = good_report()
+        value["pe_size_of_image_bytes"] += 65536
+        value["pe_size_of_image_differs_from_reconstructed_buffer"] = True
+        value["pe_size_of_image_delta_bytes"] = 65536
+        run_phase2.validate_probe(value, good_observation())
+
+    def test_unaligned_virtual_image_rejected(self):
+        value = good_report()
+        value["pe_size_of_image_bytes"] += 4096
+        value["pe_size_of_image_differs_from_reconstructed_buffer"] = True
+        value["pe_size_of_image_delta_bytes"] = 4096
+        with self.assertRaises(source_intake.IntakeError):
+            run_phase2.validate_probe(value, good_observation())
+
+    def test_unbacked_executable_section_rejected(self):
+        value = good_report()
+        value["pe_sections"][0]["virtual_span_backed_by_xex"] = False
+        with self.assertRaises(source_intake.IntakeError):
+            run_phase2.validate_probe(value, good_observation())
+
+    def test_mismatch_flag_must_reconcile(self):
+        value = good_report()
+        value["pe_size_of_image_differs_from_reconstructed_buffer"] = True
         with self.assertRaises(source_intake.IntakeError):
             run_phase2.validate_probe(value, good_observation())
 

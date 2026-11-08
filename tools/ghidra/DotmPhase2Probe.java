@@ -117,7 +117,31 @@ public class DotmPhase2Probe extends GhidraScript {
             ensure(peBase == xexBase, "PE image base disagrees with XEX image base");
             ensure(xexEntry >= xexBase, "XEX entry is below image base");
             ensure(xexEntry < xexBase + (long)pe.length, "XEX entry outside recovered image");
-            ensure(sizeOfImage != 0 && sizeOfImage <= pe.length, "PE size-of-image is outside recovered image");
+            // PE SizeOfImage is a virtual allocation measure, including headers,
+            // section alignment and possibly zero-filled tails. XEX loaderInfo.imageSize
+            // is the amount reconstructed from encrypted BASIC records. These need
+            // not be identical, so validate each independently rather than using
+            // a blanket "SizeOfImage <= pe.length" constraint.
+            long sectionAlignment = u32(pe, nt + 24 + 32);
+            long fileAlignment = u32(pe, nt + 24 + 36);
+            ensure(sectionAlignment > 0 && sectionAlignment <= 0x100000L &&
+                   (sectionAlignment & (sectionAlignment - 1)) == 0,
+                   "Invalid PE SectionAlignment=" + hex(sectionAlignment, 8));
+            ensure(fileAlignment > 0 && fileAlignment <= sectionAlignment &&
+                   (fileAlignment & (fileAlignment - 1)) == 0,
+                   "Invalid PE FileAlignment=" + hex(fileAlignment, 8));
+            ensure(sizeOfImage > 0 && sizeOfImage <= 0x7FFFFFFFL &&
+                   sizeOfImage % sectionAlignment == 0,
+                   "PE virtual SizeOfImage is invalid: declared=" + hex(sizeOfImage, 8) +
+                   " reconstructed=" + hex(pe.length, 8) +
+                   " alignment=" + hex(sectionAlignment, 8));
+            ensure(sizeOfImage >= tableEnd && sizeOfImage > xexEntry - xexBase,
+                   "PE virtual SizeOfImage does not cover headers/entry: declared=" + hex(sizeOfImage, 8) +
+                   " reconstructed=" + hex(pe.length, 8));
+            report.put("pe_section_alignment_bytes", sectionAlignment);
+            report.put("pe_file_alignment_bytes", fileAlignment);
+            report.put("pe_size_of_image_differs_from_reconstructed_buffer", sizeOfImage != pe.length);
+            report.put("pe_size_of_image_delta_bytes", sizeOfImage - pe.length);
             List<Map<String, Object>> sections = new ArrayList<>();
             int executableSections = 0;
             for (int i = 0; i < count; i++) {
@@ -128,14 +152,36 @@ public class DotmPhase2Probe extends GhidraScript {
                 long virtualSize = u32(pe, sp + 8);
                 long rva = u32(pe, sp + 12);
                 long characteristics = u32(pe, sp + 36);
-                ensure(rva <= pe.length && virtualSize <= pe.length - rva,
-                       "PE section outside reconstructed image");
+                // Validate declared virtual extent against PE's virtual allocation.
+                // An uninitialized tail can extend beyond XEX's reconstructed
+                // buffer, but executable sections must be fully present in it.
+                ensure(rva <= sizeOfImage && virtualSize <= sizeOfImage - rva,
+                       "PE section outside declared virtual image: index=" + i +
+                       " rva=" + hex(rva, 8) + " virtual_size=" + hex(virtualSize, 8) +
+                       " declared_image=" + hex(sizeOfImage, 8));
+                long rawSize = u32(pe, sp + 16);
                 boolean executable = (characteristics & 0x20000000L) != 0;
+                boolean virtualSpanBacked = rva <= pe.length && virtualSize <= pe.length - rva;
+                long initializedSpan = Math.min(rawSize, virtualSize);
+                boolean initializedSpanBacked =
+                    rva <= pe.length && initializedSpan <= pe.length - rva;
+                ensure(!executable || virtualSpanBacked,
+                       "Executable PE section is not fully backed by the XEX reconstruction: index=" +
+                       i + " rva=" + hex(rva, 8) + " virtual_size=" + hex(virtualSize, 8) +
+                       " reconstructed=" + hex(pe.length, 8));
+                ensure(initializedSpanBacked,
+                       "Initialized PE section bytes exceed XEX reconstruction: index=" + i +
+                       " rva=" + hex(rva, 8) + " initialized_size=" + hex(initializedSpan, 8) +
+                       " reconstructed=" + hex(pe.length, 8));
                 if (executable) executableSections++;
                 Map<String, Object> section = new LinkedHashMap<>();
                 section.put("name", sectionName.toString());
                 section.put("rva", hex(rva, 8));
                 section.put("virtual_size_bytes", virtualSize);
+                section.put("raw_size_bytes", rawSize);
+                section.put("virtual_span_backed_by_xex", virtualSpanBacked);
+                section.put("initialized_span_backed_by_xex", initializedSpanBacked);
+                section.put("within_declared_virtual_image", true);
                 section.put("executable", executable);
                 sections.add(section);
             }
@@ -153,6 +199,8 @@ public class DotmPhase2Probe extends GhidraScript {
             report.put("xex_entry_point", hex(xexEntry, 8));
             report.put("pe_sections", sections);
             report.put("executable_section_count", executableSections);
+            report.put("pe_section_coverage_validated", true);
+            report.put("all_executable_sections_backed", true);
             report.put("recovered_pe_sha256_private", sha256(pe));
             entry = currentProgram.getAddressFactory().getDefaultAddressSpace().getAddress(xexEntry);
             MemoryBlock block = currentProgram.getMemory().getBlock(entry);

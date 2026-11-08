@@ -69,6 +69,23 @@ def validate_probe(report: dict, observation: dict) -> None:
         raise source_intake.IntakeError("Unexpected PE optional header")
     if report.get("pe_image_length_bytes") != EXPECTED_IMAGE_BYTES:
         raise source_intake.IntakeError("Reconstructed PE size mismatch")
+    alignment = report.get("pe_section_alignment_bytes")
+    file_alignment = report.get("pe_file_alignment_bytes")
+    virtual_size = report.get("pe_size_of_image_bytes")
+    if (not isinstance(alignment, int) or alignment < 1 or alignment > 0x100000 or
+            (alignment & (alignment - 1)) != 0):
+        raise source_intake.IntakeError("Invalid PE virtual section alignment")
+    if (not isinstance(file_alignment, int) or file_alignment < 1 or
+            file_alignment > alignment or (file_alignment & (file_alignment - 1)) != 0):
+        raise source_intake.IntakeError("Invalid PE file alignment")
+    if (not isinstance(virtual_size, int) or virtual_size < 1 or
+            virtual_size > 0x7FFFFFFF or virtual_size % alignment != 0):
+        raise source_intake.IntakeError("Invalid PE virtual SizeOfImage")
+    if report.get("pe_size_of_image_differs_from_reconstructed_buffer") is not (
+            virtual_size != EXPECTED_IMAGE_BYTES):
+        raise source_intake.IntakeError("PE size discrepancy flag is inconsistent")
+    if report.get("pe_size_of_image_delta_bytes") != virtual_size - EXPECTED_IMAGE_BYTES:
+        raise source_intake.IntakeError("PE size delta does not reconcile")
     if report.get("xex_entry_point") != EXPECTED_ENTRY or report.get("xex_image_base") != EXPECTED_BASE:
         raise source_intake.IntakeError("Ghidra XEX entry/base differs from the source")
     if report.get("pe_image_base") != EXPECTED_BASE:
@@ -79,6 +96,17 @@ def validate_probe(report: dict, observation: dict) -> None:
         raise source_intake.IntakeError("PPC instruction was not decoded")
     if not isinstance(report.get("pe_sections"), list) or not report["pe_sections"]:
         raise source_intake.IntakeError("No validated recovered PE sections")
+    if report.get("pe_section_coverage_validated") is not True:
+        raise source_intake.IntakeError("PE section range validation is missing")
+    if report.get("all_executable_sections_backed") is not True:
+        raise source_intake.IntakeError("Executable sections were not fully backed")
+    for section in report["pe_sections"]:
+        if not isinstance(section, dict) or section.get("within_declared_virtual_image") is not True:
+            raise source_intake.IntakeError("PE section extends beyond its declared virtual image")
+        if section.get("initialized_span_backed_by_xex") is not True:
+            raise source_intake.IntakeError("PE initialized section span was not backed")
+        if section.get("executable") is True and section.get("virtual_span_backed_by_xex") is not True:
+            raise source_intake.IntakeError("PE executable section was not fully backed")
     if not isinstance(report.get("executable_section_count"), int) or report["executable_section_count"] < 1:
         raise source_intake.IntakeError("Recovered image does not contain executable sections")
     if not isinstance(report.get("pe_machine_hex"), str) or not re.fullmatch(r"0x[0-9A-F]{4}", report["pe_machine_hex"]):
@@ -125,6 +153,10 @@ def run(source: Path) -> Path:
                 f"Headless Ghidra exited {result.returncode}; review private logs in {output}")
         import_report = json.loads((output / "ghidra-import.json").read_text(encoding="utf-8"))
         phase1.validate_import(import_report, observation["sha256"], xex=True)
+        if not (output / "phase2-pe.json").is_file():
+            raise source_intake.IntakeError(
+                "Ghidra did not write phase2-pe.json; the postScript may have thrown. "
+                "Inspect only redacted ERROR REPORT SCRIPT ERROR lines in the private console.log")
         pe_report = json.loads((output / "phase2-pe.json").read_text(encoding="utf-8"))
         validate_probe(pe_report, observation)
         final = source_intake.hash_source(source)

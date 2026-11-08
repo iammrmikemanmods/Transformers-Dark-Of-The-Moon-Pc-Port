@@ -64,3 +64,11 @@ Source implementation commit: `062bfb26fccf1fa771d77024e7d394b790038f4b`.
 - Earlier source-tools run 42531168688 failed on a Windows timestamp false positive. This was investigated, fixed in commit 062bfb2, and verified by the successful replacement run. That failed run is retained as evidence, not reclassified as a pass.
 
 No real XEX was uploaded to or processed by these public workflows. The actual Xbox PE machine type, recovered PE hash, source-specific memory blocks, imports and PowerPC instructions remain unobserved by this project.
+
+## 2026-11-08 — owner Codespace real-source error and validation correction
+
+Two runs of the real XEX in the owner's private Codespace reached `DotmPhase2Probe.java` but failed the original guard `PE size-of-image is outside recovered image` before writing `phase2-pe.json`. The screenshot shows successful entry into the script and no cryptographic key data. We do not know the actual numeric PE `SizeOfImage` value yet.
+
+The old guard compared the PE optional-header **virtual `SizeOfImage`** to XEXLoaderWV's **reconstructed `peImage.length`**. That is not a universally valid constraint. The updated guard records both lengths and their signed delta, verifies PE SectionAlignment/FileAlignment, requires the virtual SizeOfImage to be aligned and bounded, verifies each section fits its declared virtual range, requires executable sections to be fully backed by XEX reconstructed bytes, and checks that initialized section spans are backed. No mismatch is silently concealed. An aligned virtual image larger than the reconstructed bytes is allowed only when the section checks pass. The Python evidence validator checks the new size delta and per-section coverage flags.
+
+The runner now gives an explicit missing-postScript-report error, not a bare FileNotFoundError. The previous failed runs remain private and unchanged. Re-run only after updating the Phase 2 branch and validating the new CI results. No real-XEX success is claimed until a new `SUCCESS.json` is produced and reviewed.
