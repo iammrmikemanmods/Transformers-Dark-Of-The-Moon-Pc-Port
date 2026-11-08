@@ -25,5 +25,5 @@ jobs:
           docker run --rm --user "$(id -u):$(id -g)" \
             -e HOME=/tmp/dotm-smoke-home -e GITHUB_ACTIONS=true \
             -v "$PWD:/workspaces/dotm" -w /workspaces/dotm dotm-phase1-smoke \
-            bash -c 'set -euo pipefail; mkdir -p "$HOME"; python --version; java -version; python tools/check_repository.py; python -m unittest discover -s tests -v; bash tools/bootstrap_ghidra.sh; python tools/smoke_ghidra.py'
+            bash -c 'set -euo pipefail; mkdir -p "$HOME"; python --version; java -version; python tools/check_repository.py; python -m unittest discover -s tests -v; bash tools/bootstrap_ghidra.sh; python tools/smoke_ghidra.py; python tools/smoke_phase2.py'
       # Deliberately no artifact upload and no source URL/secret inputs.

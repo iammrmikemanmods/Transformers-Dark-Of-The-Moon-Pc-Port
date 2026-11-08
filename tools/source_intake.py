@@ -22,8 +22,10 @@ class IntakeError(ValueError):
 
 
 def _stamp(info):
-    return (info.st_dev, info.st_ino, info.st_size,
-            info.st_mtime_ns, info.st_ctime_ns)
+    # Windows creation/change timestamps can differ between lstat and fstat on
+    # the same newly created file. Identity + size + mtime are stable here;
+    # the complete SHA-256 is independently pinned for real game inputs.
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
 
 
 def _check_entry(path: Path, directory: bool = False):
