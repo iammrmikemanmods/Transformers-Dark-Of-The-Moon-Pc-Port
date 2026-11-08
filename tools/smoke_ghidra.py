@@ -17,7 +17,6 @@ def main() -> int:
     source = output / 'synthetic-ppc.bin'
     payload = bytes.fromhex('4e800020')  # blr: return using the link register.
     source.write_bytes(payload)
-    (output / 'project').mkdir()
     command = headless_command(ROOT, source, output, smoke=True)
     subprocess.run(command, cwd=ROOT, check=True, timeout=300)
     report = json.loads((output / 'ghidra-import.json').read_text(encoding='utf-8'))

@@ -37,6 +37,16 @@ class ValidationTests(unittest.TestCase):
         with self.assertRaises(source_intake.IntakeError):
             phase.validate_import(synthetic_report(), 'b' * 64, xex=True)
 
+    def test_rejects_null_hash(self):
+        report = synthetic_report()
+        report['executable_sha256'] = None
+        with self.assertRaises(source_intake.IntakeError):
+            phase.validate_import(report, 'a' * 64, xex=True)
+
+    def test_rejects_non_object_report(self):
+        with self.assertRaises(source_intake.IntakeError):
+            phase.validate_import([], 'a' * 64, xex=True)
+
     def test_rejects_missing_extension(self):
         report = synthetic_report()
         report['xex_loader_discovered'] = False
@@ -76,7 +86,7 @@ class PrivateRunTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         subprocess.run(['git', 'init', '-q', str(self.root)], check=True)
-        (self.root / '.gitignore').write_text('.local/\n', encoding='utf-8')
+        (self.root / '.gitignore').write_text('.local/\nprivate/\n', encoding='utf-8')
         subprocess.run(['git', 'add', '.gitignore'], cwd=self.root, check=True)
         subprocess.run(['git', '-c', 'user.name=Synthetic Test', '-c', 'user.email=test@example.invalid',
                         'commit', '-qm', 'Synthetic fixture only'], cwd=self.root, check=True)
@@ -128,6 +138,25 @@ class PrivateRunTests(unittest.TestCase):
             phase.run(self.root, self.source)
         self.assertEqual(len(list(self.root.rglob('FAILED.json'))), 1)
         self.assertFalse(list(self.root.rglob('SUCCESS.json')))
+
+    def test_project_is_outside_hidden_report_directory(self):
+        project = phase.private_project(self.root, 'synthetic-run')
+        self.assertEqual(project, self.root / 'private/ghidra-projects/synthetic-run')
+        self.assertFalse(any(p.startswith('.') for p in project.parts))
+
+    def test_existing_project_not_reused(self):
+        phase.private_project(self.root, 'synthetic-run')
+        with self.assertRaises(FileExistsError):
+            phase.private_project(self.root, 'synthetic-run')
+
+    def test_hidden_project_identifier_rejected(self):
+        with self.assertRaises(source_intake.IntakeError):
+            phase.private_project(self.root, '.hidden')
+
+    def test_unignored_private_directory_rejected(self):
+        (self.root / '.gitignore').write_text('.local/\n', encoding='utf-8')
+        with self.assertRaises(source_intake.IntakeError):
+            phase.private_project(self.root, 'synthetic-run')
 
 
 if __name__ == '__main__':

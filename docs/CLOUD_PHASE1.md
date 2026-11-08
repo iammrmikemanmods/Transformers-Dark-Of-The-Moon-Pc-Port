@@ -22,19 +22,22 @@ The private runner refuses to execute under GitHub Actions. Public CI uses indep
 
 ## Evidence and failure handling
 
-Each invocation creates a unique ignored `.local/runs/<UTC timestamp>-<random id>/` directory. Outputs include `intake.json`, environment and exact-command records, Ghidra logs, a private Ghidra project and `ghidra-import.json`. `SUCCESS.json` is written only after the relevant gates pass and the input SHA-256 remains unchanged. A Ghidra exit code of zero is insufficient: the JSON report must exist, the XEX loader and expected PowerPC language must be present, a memory block must exist, and Ghidra's input hash must match the intake hash. Failures preserve diagnostics with `FAILED.json` where the run directory was established. Missing/malformed inputs may stop before a run directory is created. Existing evidence is not overwritten.
+Each invocation creates a unique ignored `.local/runs/<UTC timestamp>-<random id>/` report directory. Outputs include `intake.json`, environment and exact-command records, Ghidra logs and `ghidra-import.json`. The Ghidra database goes to **`private/ghidra-projects/<same run id>/`**, also ignored and protected by the publication guard. Ghidra rejects hidden path components in project database paths, so the database must NOT be under `.local/`. Both private roots must be ignored and untracked; a linked path is refused.
+
+`SUCCESS.json` is written only after the relevant gates pass and the input SHA-256 remains unchanged. A Ghidra exit code of zero is insufficient: the JSON report must exist, the XEX loader and expected PowerPC language must be present, a memory block must exist, and Ghidra's input hash must match the intake hash. Failures preserve diagnostics with `FAILED.json` where the run directory was established. Missing/malformed inputs may stop before a run directory is created. Existing evidence is not overwritten.
 
 Metadata includes declared XEX fields, image base, imported memory blocks, entry points, library names, language/endianness and imported function count. Imported function count is not complete function discovery. No decompiled C, instruction listing, game bytes, signature authentication, retail validity, or PC gameplay result is claimed. The `-noanalysis` switch deliberately separates a loader/import gate from a later full analysis task.
 
-For review in ChatGPT, download and attach only `intake.json`, `ghidra-import.json` and `SUCCESS.json`, or the small relevant failure logs after checking for private paths. Never attach the entire run directory to public GitHub: a Ghidra project contains the imported executable. Reports remain private unless the owner explicitly approves sharing.
+For review in ChatGPT, download and attach only `intake.json`, `ghidra-import.json` and `SUCCESS.json`, or the small relevant failure logs after checking for private paths. Never attach the project database or the private directory to public GitHub: a Ghidra project contains the imported executable. Reports remain private unless the owner explicitly approves sharing.
 
 ## Pinned upstream packages
 
 - Ghidra tag `Ghidra_12.1.3_build`, asset `ghidra_12.1.3_PUBLIC_20260817.zip`, SHA-256 `93a5d11a9ad510622acaaf908c556a7b9b764d338e78a7567f3689bf5081fd54`.
 - XEXLoaderWV tag `12.1.3`, asset `ghidra_12.1.3_PUBLIC_20260920_XEXLoaderWV.zip`, SHA-256 `afdaf425bb8e16706f28a453a836ac84fcd0d5000f93a2275a02105807d030a3`.
 - Ghidra's pinned `application.properties` specifies minimum Java 21. Its corresponding loader source selects `PowerPC:BE:64:A2ALT-32addr` with compiler specification `default`.
-- This is a matched pair, not a claim that 12.1.3 is the newest version. Downloads are private user installations, not redistributed tool packages. Ghidra ships its licences; the extension's licensing must be reviewed before any redistribution. No ReXGlue integration is added here.
-- Python's Docker image tag and Debian dependency packages are mutable. The environment is not a fully bit-reproducible image; CI logs and per-run Python/platform records expose the actual environment. Tool archive hashes are checked before extraction. The local installation manifest detects accidental changes, not an attacker able to replace both files and the manifest.
+- This is a matched pair, not a claim that 12.1.3 is newest. Downloads are private user installations, not redistributed tool packages. Ghidra ships its licences; the extension's licensing must be reviewed before any redistribution. No ReXGlue integration is added here.
+- Docker base is pinned to observed digest `sha256:9aaa474097d094040649f2162a627c0049b408f52138d980916788d80f04802f` (Python 3.14.10). Debian dependency package versions remain mutable. The image is therefore not fully bit-reproducible; CI records actual package versions. Tool archive hashes are checked before extraction. The local installation manifest detects accidental changes, not an attacker able to replace both files and the manifest.
+- `.dockerignore` excludes all project data and credentials from the build context, allowing only the Dockerfile.
 
 Primary references:
 
@@ -47,4 +50,6 @@ Primary references:
 
 The public smoke test builds the actual devcontainer Dockerfile, verifies archive hashes, starts headless Ghidra, discovers the XEX extension, imports four synthetic PPC bytes and validates a JSON report. It does **not** test encrypted/compressed XEX loading or DOTM compatibility. Read the actual GitHub run outcome before claiming it passed.
 
-Original sources are read-only inputs. Keep a local backup: a Codespace is not archival storage. To repair a partial installation, preserve or rename `.local/toolchains/ghidra-12.1.3` and rerun `bash tools/bootstrap_ghidra.sh`; do not delete `.local/source` or `.local/runs`. To roll back the implementation, check out the preceding branch commit; private inputs and reports remain untouched. No game installation, account secret, public network service, or original binary is modified.
+Initial cloud run `42510811993` built the container, passed 42 tests, verified both upstream archive hashes and started Ghidra; it then failed because Ghidra disallows the hidden `.local` project database path. The corrected implementation uses `private/ghidra-projects/` and adds regression tests. Do not count that initial run as a successful smoke test.
+
+Original sources are read-only inputs. Keep a local backup: a Codespace is not archival storage. To repair a partial installation, preserve or rename `.local/toolchains/ghidra-12.1.3` and rerun `bash tools/bootstrap_ghidra.sh`; do not delete `.local/source`, `.local/runs` or `private/ghidra-projects`. To roll back, check out the preceding branch commit; private inputs and reports remain untouched. No game installation, account secret, public network service, or original binary is modified.

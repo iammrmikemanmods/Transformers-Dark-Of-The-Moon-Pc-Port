@@ -1,0 +1,4 @@
+# The container needs no game input, repository credentials, or source tree.
+**
+!.devcontainer/
+!.devcontainer/Dockerfile
