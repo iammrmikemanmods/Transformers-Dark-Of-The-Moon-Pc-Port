@@ -1,0 +1,79 @@
+name: Windows workspace BAT test (synthetic paths only)
+on:
+  push:
+    paths:
+      - 'SETUP_DOTM_WORKSPACE.bat'
+      - '.github/workflows/workspace-bootstrap-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-bootstrap:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout source only
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Test folder bootstrap and idempotence with synthetic source
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'Transformers DOTM PC Recomp'
+          $source = Join-Path $root 'extracted ISO'
+          New-Item -ItemType Directory -Force -Path $source | Out-Null
+          $sentinel = Join-Path $source 'synthetic-source-sentinel.txt'
+          [IO.File]::WriteAllText($sentinel, 'synthetic-only')
+          $before = (Get-FileHash -Algorithm SHA256 $sentinel).Hash
+          $script = Join-Path $env:GITHUB_WORKSPACE 'SETUP_DOTM_WORKSPACE.bat'
+          & $script $root
+          if ($LASTEXITCODE -ne 0) { throw 'First setup failed' }
+          & $script $root
+          if ($LASTEXITCODE -ne 0) { throw 'Idempotent re-run failed' }
+          $expected = @(
+            '00_PROJECT_CONTROL\WORKSPACE_POLICY.txt',
+            '00_PROJECT_CONTROL\RUN_LOGS',
+            '01_SOURCE_INTAKE\ISO_CHECKSUMS',
+            '02_PPC_ANALYSIS\GHIDRA_PROJECTS_PRIVATE',
+            '03_STATIC_RECOMPILATION\GENERATED_CPP_PRIVATE',
+            '04_XBOX_RUNTIME\KERNEL',
+            '05_UE3_COMPATIBILITY\COOKED_ASSETS_PRIVATE',
+            '06_WINDOWS_X64\HOST_EXECUTABLE',
+            '07_ISO_INSTALLER\ISO_VALIDATION',
+            '08_QA_PARITY\REGRESSION',
+            '09_PRIVATE_TEST_BUILDS\DRAG_AND_DROP',
+            '10_PUBLIC_DISTRIBUTION\CODE_ONLY',
+            '11_PINNED_TOOLS\GHIDRA',
+            '12_GITHUB_SOURCE',
+            '13_REPORTS\EVIDENCE',
+            '14_BACKUPS\ROLLBACK'
+          )
+          foreach ($item in $expected) {
+            if (-not (Test-Path (Join-Path $root $item))) { throw "Missing workspace item: $item" }
+          }
+          if ((Get-FileHash -Algorithm SHA256 $sentinel).Hash -ne $before) {
+            throw 'Original synthetic source changed'
+          }
+          if (Test-Path (Join-Path $root '12_GITHUB_SOURCE\Transformers-Dark-Of-The-Moon-Pc-Port')) {
+            throw 'Unexpected repository clone during default setup'
+          }
+          Write-Host 'PASS: idempotent BAT setup, required folders and source preservation.'
+          & $script $root '/CLONE'
+          if ($LASTEXITCODE -ne 0) { throw 'Explicit source-only Git clone failed' }
+          $repoPath = Join-Path $root '12_GITHUB_SOURCE\Transformers-Dark-Of-The-Moon-Pc-Port'
+          if (-not (Test-Path (Join-Path $repoPath '.git'))) {
+            throw 'Repository checkout missing after explicit clone'
+          }
+          $branch = (git -C $repoPath branch --show-current).Trim()
+          if ($branch -ne 'engineering/windows-workspace-bootstrap-2026-11-10') {
+            throw "Unexpected cloned branch: $branch"
+          }
+          & $script $root '/CLONE'
+          if ($LASTEXITCODE -ne 0) { throw 'Existing checkout was not preserved' }
+          if ((Get-FileHash -Algorithm SHA256 $sentinel).Hash -ne $before) {
+            throw 'Original synthetic source changed after optional clone'
+          }
+          Write-Host 'PASS: explicit source-only clone and no-reset re-run.'
+
