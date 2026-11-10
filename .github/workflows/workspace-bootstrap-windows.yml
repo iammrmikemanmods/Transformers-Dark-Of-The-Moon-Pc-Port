@@ -60,3 +60,20 @@ jobs:
             throw 'Unexpected repository clone during default setup'
           }
           Write-Host 'PASS: idempotent BAT setup, required folders and source preservation.'
+          & $script $root '/CLONE'
+          if ($LASTEXITCODE -ne 0) { throw 'Explicit source-only Git clone failed' }
+          $repoPath = Join-Path $root '12_GITHUB_SOURCE\Transformers-Dark-Of-The-Moon-Pc-Port'
+          if (-not (Test-Path (Join-Path $repoPath '.git'))) {
+            throw 'Repository checkout missing after explicit clone'
+          }
+          $branch = (git -C $repoPath branch --show-current).Trim()
+          if ($branch -ne 'engineering/windows-workspace-bootstrap-2026-11-10') {
+            throw "Unexpected cloned branch: $branch"
+          }
+          & $script $root '/CLONE'
+          if ($LASTEXITCODE -ne 0) { throw 'Existing checkout was not preserved' }
+          if ((Get-FileHash -Algorithm SHA256 $sentinel).Hash -ne $before) {
+            throw 'Original synthetic source changed after optional clone'
+          }
+          Write-Host 'PASS: explicit source-only clone and no-reset re-run.'
+
